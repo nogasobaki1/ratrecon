@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ratrecon v1.0
+# Linux system recon tool
+# Author: nogasobaki1
+# GitHub: https://github.com/nogasobaki1/ratrecon
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOGO_FILE="$SCRIPT_DIR/assets/logo.txt"
+
+if [[ ! -f "$LOGO_FILE" ]]; then
+    echo "Error: $LOGO_FILE not found" >&2
+    exit 1
+fi
+
+mapfile -t logo < "$LOGO_FILE"
+
+info=(
+    "\e[1;36m$(whoami)@$(uname -n)\e[0m"
+    "-----------------"
+    "Kernel: $(uname -r)"
+    "Network: $(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || hostname -I | awk '{print $1}')"
+    "Ports: $(ss -tulnp 2>/dev/null | grep LISTEN | wc -l) listening"
+    "Users: $(awk -F: '$3 >= 1000 && $1 != "nobody"' /etc/passwd | wc -l) non-system"
+    "Cron: $(crontab -l 2>/dev/null | wc -l) tasks"
+    "Services: $(systemctl list-units --type=service --state=running --no-pager 2>/dev/null | wc -l) running"
+    "SUID files:"
+)
+
+while IFS= read -r suid_file; do
+    info+=("  $suid_file")
+done < <(find / -perm -4000 -type f 2>/dev/null | head -n 4)
+
+logo_lines=${#logo[@]}
+info_lines=${#info[@]}
+offset=$(( (logo_lines - info_lines) / 2 ))
+(( offset < 0 )) && offset=0
+
+for (( i=0; i<logo_lines; i++ )); do
+    if (( i >= offset && i < offset + info_lines )); then
+        info_idx=$(( i - offset ))
+        printf "%-55s %b\n" "${logo[$i]}" "${info[$info_idx]}"
+    else
+        printf "%s\n" "${logo[$i]}"
+    fi
+done

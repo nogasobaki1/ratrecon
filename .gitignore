@@ -1,0 +1,24 @@
+# System
+.DS_Store
+Thumbs.db
+*.swp
+*~
+*.swo
+
+# Logs
+*.log
+output/
+reports/
+
+# Editors
+.vscode/
+.idea/
+*.sublime-*
+
+# Python (на будущее)
+__pycache__/
+*.pyc
+
+# Temp
+*.tmp
+*.bak

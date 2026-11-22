@@ -13,6 +13,61 @@ if [[ ! -f "$LOGO_FILE" ]]; then
 fi
 
 mapfile -t logo < "$LOGO_FILE"
+scan_suid() {
+    local jobs tmp_dir path result_file
+    local -a scan_paths=()
+
+    # Determine the number of available CPU cores
+    jobs=$(nproc 2>/dev/null) || jobs=2
+
+    if [[ ! "$jobs" =~ ^[0-9]+$ ]] || (( jobs < 1 )); then
+        jobs=2
+    fi
+
+    # Limit the maximum number of workers
+    (( jobs > 4 )) && jobs=4
+
+    # Create a temporary directory for worker results
+    tmp_dir=$(mktemp -d) || return 1
+
+    # Collect top-level paths
+    while IFS= read -r -d '' path; do
+        scan_paths+=("$path")
+    done < <(
+        find / -mindepth 1 -maxdepth 1 \
+            \( -path /proc -o -path /sys -o -path /dev -o -path /run \) \
+            -prune -o -print0 2>/dev/null
+    )
+
+    if ((${#scan_paths[@]} == 0)); then
+        rm -rf -- "$tmp_dir"
+        return 0
+    fi
+
+    # Run independent scans in parallel
+    if ! printf '%s\0' "${scan_paths[@]}" |
+        xargs -0 -r -P "$jobs" -I '{}' sh -c '
+            target=$1
+            output_dir=$2
+            output_file=$(mktemp "$output_dir/result.XXXXXX") || exit 1
+
+            find "$target" -path "$output_dir" -prune -o \
+                -type f -perm -4000 -print0 2>/dev/null |
+                head -z -n 4 > "$output_file"
+        ' _ '{}' "$tmp_dir"; then
+        rm -rf -- "$tmp_dir"
+        return 1
+    fi
+
+    # Merge results and keep four unique paths
+    for result_file in "$tmp_dir"/result.*; do
+        [[ -f "$result_file" ]] || continue
+        cat -- "$result_file"
+    done | sort -zu | head -z -n 4
+
+    # Remove temporary files
+    rm -rf -- "$tmp_dir"
+}
 
 info=(
     "\e[1;36m$(whoami)@$(uname -n)\e[0m"
@@ -26,9 +81,9 @@ info=(
     "SUID files:"
 )
 
-while IFS= read -r suid_file; do
+while IFS= read -r -d '' suid_file; do
     info+=("  $suid_file")
-done < <(find / -perm -4000 -type f 2>/dev/null | head -n 4)
+done < <(scan_suid)
 
 logo_lines=${#logo[@]}
 info_lines=${#info[@]}

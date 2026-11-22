@@ -103,7 +103,10 @@ I am building this project as part of my learning path toward penetration testin
 
 - [ ] Add `--help` flag
 - [ ] Export report to file (`--output report.txt`)
-- [ ] Parallel SUID scan for speed
+
+## Completed
+
+- [x] Parallel SUID scanning for speed
 
 ## License
 
